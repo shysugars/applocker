@@ -1,33 +1,25 @@
 package com.example.helloworld
 
 import android.os.Bundle
-import androidx.activity.enableEdgeToEdge
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.example.helloworld.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
-    lateinit var binding: ActivityMainBinding
+    private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-
+        
+        // 使用 ViewBinding
         binding = ActivityMainBinding.inflate(layoutInflater)
-        val view = binding.root
-        setContentView(view)
+        setContentView(binding.root)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
+        // 设置开关监听
+        binding.switchDynamic.setOnCheckedChangeListener { _, isChecked ->
+            val message = if (isChecked) "已开启" else "已关闭"
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
-
-        binding.btnGreet.setOnClickListener {
-            binding.tvGreet.setText(getString(R.string.hello_android))
-        }
-
     }
 }
