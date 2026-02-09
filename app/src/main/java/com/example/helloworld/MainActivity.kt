@@ -7,21 +7,20 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.helloworld.databinding.ActivityMainBinding
-import rikka.shizuku.Shizuku // 导入 Shizuku
+import rikka.shizuku.Shizuku
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
-    // Shizuku 权限请求回调监听器
     private val requestPermissionResultListener =
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
             if (requestCode == 0 && grantResult == PackageManager.PERMISSION_GRANTED) {
-                // 权限申请成功，立即执行
                 execWhoami()
             } else {
                 Toast.makeText(this, "Shizuku 权限被拒绝", Toast.LENGTH_SHORT).show()
-                // 权限被拒，把开关拨回去
                 binding.switchDynamic.isChecked = false
             }
         }
@@ -44,10 +43,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 注册 Shizuku 监听器
         Shizuku.addRequestPermissionResultListener(requestPermissionResultListener)
 
-        // 修改开关逻辑
         binding.switchDynamic.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 checkAndRunShizuku()
@@ -64,44 +61,56 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // 移除监听器防止内存泄漏
         Shizuku.removeRequestPermissionResultListener(requestPermissionResultListener)
     }
 
-    // 检查权限并运行
     private fun checkAndRunShizuku() {
-        // 1. 检查 Shizuku 服务是否可用
         if (!Shizuku.pingBinder()) {
             Toast.makeText(this, "Shizuku 未运行", Toast.LENGTH_SHORT).show()
             binding.switchDynamic.isChecked = false
             return
         }
 
-        // 2. 检查是否有权限
         if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
             execWhoami()
         } else {
-            // 3. 请求权限
             Shizuku.requestPermission(0)
         }
     }
 
-    // 执行 Shell 命令
     private fun execWhoami() {
-        // 开启子线程执行耗时操作（IO）
         Thread {
             try {
-                // 核心代码：使用 Shizuku 创建进程
-                // "sh", "-c", "whoami" 等同于在终端执行 whoami
-                val process = Shizuku.newProcess(arrayOf("sh", "-c", "whoami"), null, null)
+                // === 修改开始：使用反射调用 newProcess ===
+                // 由于 Shizuku.newProcess 在新版中对 Kotlin 隐藏或设为私有，这里用反射强行调用
+                val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                newProcessMethod.isAccessible = true
                 
-                // 读取输出流
-                val result = process.inputStream.bufferedReader().use { it.readText() }
+                // 执行命令: sh -c whoami
+                val process = newProcessMethod.invoke(
+                    null, 
+                    arrayOf("sh", "-c", "whoami"), 
+                    null, 
+                    null
+                ) as Process
+                // === 修改结束 ===
+
+                val reader = BufferedReader(InputStreamReader(process.inputStream))
+                val result = StringBuilder()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    result.append(line).append("\n")
+                }
+                
                 val exitCode = process.waitFor()
 
                 runOnUiThread {
                     if (exitCode == 0) {
-                        // 成功，result 通常是 shell 或者 root
                         binding.tvSelectedApps.text = "Shizuku 执行结果 (whoami):\n$result"
                         Toast.makeText(this@MainActivity, "执行成功", Toast.LENGTH_SHORT).show()
                     } else {
@@ -109,8 +118,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
+                e.printStackTrace()
                 runOnUiThread {
-                    binding.tvSelectedApps.text = "错误: ${e.message}"
+                    binding.tvSelectedApps.text = "错误: ${e.message}\n请确认Shizuku服务正常"
                     binding.switchDynamic.isChecked = false
                 }
             }
