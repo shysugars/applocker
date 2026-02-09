@@ -1,9 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-        <!-- 新增：Shizuku 权限 -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
     <application
         android:name=".MyApplication"
         android:allowBackup="true"
@@ -15,15 +15,27 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.HelloWorld"
         tools:targetApi="31">
+
+        <!-- 新增：显式声明 Shizuku Provider -->
+        <!-- authorities 必须是 "你的包名.shizuku" -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:initOrder="100"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <activity
             android:name=".AppSelectionActivity"
             android:label="选择应用"

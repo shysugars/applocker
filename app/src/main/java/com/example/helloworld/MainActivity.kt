@@ -16,31 +16,38 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
-    // 1. 定义 Shizuku 服务连接状态监听器
+    // 监听 Shizuku 服务连接状态
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
-        // 当 Shizuku 服务连接成功时回调
-        Log.d("Shizuku", "Binder received")
-        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-            // 如果已有权限且连接成功，可以在这里更新 UI 状态
+        Log.d("Shizuku", "OnBinderReceived")
+        runOnUiThread {
+            binding.switchDynamic.isEnabled = true
+            binding.switchDynamic.text = "功能开关 (Shizuku 已连接)"
+            // 如果已经有权限，自动尝试执行一次或保持状态
+            if (checkPermission(false)) {
+                // 可以在这里预加载一些东西
+            }
         }
     }
 
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
-        // 当 Shizuku 服务断开时回调
-        Log.d("Shizuku", "Binder dead")
-        // 如果服务断开，关闭开关
-        binding.switchDynamic.isChecked = false
+        Log.d("Shizuku", "OnBinderDead")
+        runOnUiThread {
+            binding.switchDynamic.isEnabled = false
+            binding.switchDynamic.isChecked = false
+            binding.switchDynamic.text = "功能开关 (Shizuku 未运行)"
+            binding.tvSelectedApps.text = "Shizuku 服务已断开"
+        }
     }
 
-    // 2. 权限请求回调
+    // 监听权限请求结果
     private val requestPermissionResultListener =
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-            if (requestCode == 0) {
+            if (requestCode == 100) {
                 if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, "Shizuku 权限已获取", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "权限获取成功", Toast.LENGTH_SHORT).show()
                     execWhoami()
                 } else {
-                    Toast.makeText(this, "Shizuku 权限被拒绝", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "用户拒绝了 Shizuku 权限", Toast.LENGTH_SHORT).show()
                     binding.switchDynamic.isChecked = false
                 }
             }
@@ -64,14 +71,23 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 3. 注册监听器 (一定要在 onCreate 中注册)
+        // 初始化状态：先禁用开关，等待 Shizuku 连接
+        binding.switchDynamic.isEnabled = false
+        binding.switchDynamic.text = "正在连接 Shizuku..."
+
+        // 注册监听器
         Shizuku.addBinderReceivedListener(binderReceivedListener)
         Shizuku.addBinderDeadListener(binderDeadListener)
         Shizuku.addRequestPermissionResultListener(requestPermissionResultListener)
 
+        // 检查当前状态（防止监听器注册晚了）
+        checkShizukuStatus()
+
         binding.switchDynamic.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                checkAndRunShizuku()
+                if (checkPermission(true)) {
+                    execWhoami()
+                }
             } else {
                 binding.tvSelectedApps.text = "功能已关闭"
             }
@@ -85,38 +101,45 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // 4. 移除监听器，防止内存泄漏
         Shizuku.removeBinderReceivedListener(binderReceivedListener)
         Shizuku.removeBinderDeadListener(binderDeadListener)
         Shizuku.removeRequestPermissionResultListener(requestPermissionResultListener)
     }
 
-    private fun checkAndRunShizuku() {
-        // 检查服务是否连接
-        if (!Shizuku.pingBinder()) {
-            // 尝试再次检查（有时可能有极短延迟）
-            Toast.makeText(this, "Shizuku 未运行或未连接\n请确保 Shizuku App 已启动", Toast.LENGTH_SHORT).show()
-            binding.switchDynamic.isChecked = false
-            return
-        }
-
-        // 检查权限
-        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-            execWhoami()
+    private fun checkShizukuStatus() {
+        if (Shizuku.pingBinder()) {
+            // 如果已经连接
+            binding.switchDynamic.isEnabled = true
+            binding.switchDynamic.text = "功能开关 (Shizuku 已连接)"
         } else {
-            // 只有当 Shizuku 正在运行时，才能请求权限
-            if (Shizuku.shouldShowRequestPermissionRationale()) {
-                // 用户之前拒绝过，可以在这里提示用户
-            }
-            Shizuku.requestPermission(0)
+            // 未连接，提示用户
+            binding.tvSelectedApps.text = "等待 Shizuku 服务...\n如果长时间无反应，请确保 Shizuku App 正在运行。"
         }
+    }
+
+    private fun checkPermission(requestIfNotGranted: Boolean): Boolean {
+        if (!Shizuku.pingBinder()) {
+            return false
+        }
+        
+        try {
+            if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                return true
+            } else if (requestIfNotGranted) {
+                Shizuku.requestPermission(100)
+                return false
+            }
+        } catch (e: Exception) {
+            // 处理 API < 23 的罕见情况
+            e.printStackTrace()
+        }
+        return false
     }
 
     private fun execWhoami() {
         Thread {
             try {
-                // === 反射调用 newProcess ===
-                // 此时 Shizuku.newProcess 实际上是存在的，只是被隐藏了
+                // 使用反射调用 Shizuku.newProcess (绕过 @hide 限制)
                 val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
                     "newProcess",
                     Array<String>::class.java,
@@ -139,7 +162,7 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     if (exitCode == 0) {
-                        binding.tvSelectedApps.text = "Shizuku 执行结果 (whoami):\n$result"
+                        binding.tvSelectedApps.text = "Shizuku 执行成功 (Root/ADB):\n$result"
                     } else {
                         binding.tvSelectedApps.text = "执行失败，退出码: $exitCode"
                     }
@@ -147,7 +170,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
                 runOnUiThread {
-                    binding.tvSelectedApps.text = "错误: ${e.message}\n请检查 Shizuku 状态"
+                    binding.tvSelectedApps.text = "执行错误:\n${e.message}\n请检查 Shizuku 是否正常授权"
                     binding.switchDynamic.isChecked = false
                 }
             }
