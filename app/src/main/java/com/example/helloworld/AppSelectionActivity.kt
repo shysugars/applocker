@@ -47,7 +47,7 @@ class AppSelectionActivity : AppCompatActivity() {
         binding.fabSave.setOnClickListener {
             val selectedNames = appList.filter { it.isSelected }.map { it.packageName }
             val intent = Intent().apply {
-                putStringArrayListExtra("selected_apps", ArrayList(selectedNames))
+                putStringArrayListExtra("selected_packages", ArrayList(selectedNames))
             }
             setResult(RESULT_OK, intent)
             finish()
