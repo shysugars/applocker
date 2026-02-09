@@ -4,17 +4,44 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:padding="16dp"
     tools:context=".MainActivity">
 
-    <!-- 使用 MaterialSwitch 以获得更好的 Material 3 动画效果 -->
     <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/switch_dynamic"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="功能开关"
+        app:layout_constraintBottom_toTopOf="@+id/btn_select_apps"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <!-- 新增：打开新页面的按钮 -->
+    <Button
+        android:id="@+id/btn_select_apps"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="选择应用"
+        app:layout_constraintBottom_toTopOf="@+id/tv_selected_apps"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/switch_dynamic" />
+
+    <!-- 新增：显示结果的文本框 -->
+    <TextView
+        android:id="@+id/tv_selected_apps"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:gravity="center"
+        android:hint="暂未选择任何应用"
+        android:textIsSelectable="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/btn_select_apps" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
