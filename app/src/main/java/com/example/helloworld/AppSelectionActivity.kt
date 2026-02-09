@@ -45,7 +45,7 @@ class AppSelectionActivity : AppCompatActivity() {
 
         // 保存按钮点击事件
         binding.fabSave.setOnClickListener {
-            val selectedNames = appList.filter { it.isSelected }.map { it.name }
+            val selectedNames = appList.filter { it.isSelected }.map { it.packageName }
             val intent = Intent().apply {
                 putStringArrayListExtra("selected_apps", ArrayList(selectedNames))
             }
