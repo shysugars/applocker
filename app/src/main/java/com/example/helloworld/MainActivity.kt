@@ -19,6 +19,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import com.example.helloworld.databinding.ActivityMainBinding
 import rikka.shizuku.Shizuku
+import com.example.helloworld.BuildConfig 
 import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {

@@ -10,6 +10,7 @@ android {
     buildFeatures {
         viewBinding = true
         aidl = true 
+        buildConfig = true
     }
 
     defaultConfig {
