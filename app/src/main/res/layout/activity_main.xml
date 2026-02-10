@@ -18,29 +18,19 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed" />
 
+    <!-- 新增：打开新页面的按钮 -->
     <Button
         android:id="@+id/btn_select_apps"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:text="选择应用"
-        app:layout_constraintBottom_toTopOf="@+id/btn_accessibility"
+        app:layout_constraintBottom_toTopOf="@+id/tv_selected_apps"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/switch_dynamic" />
 
-    <Button
-        android:id="@+id/btn_accessibility"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="开启保活 (无障碍)"
-        style="@style/Widget.Material3.Button.OutlinedButton"
-        app:layout_constraintBottom_toTopOf="@+id/tv_selected_apps"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/btn_select_apps" />
-
+    <!-- 新增：显示结果的文本框 -->
     <TextView
         android:id="@+id/tv_selected_apps"
         android:layout_width="0dp"
@@ -52,6 +42,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/btn_accessibility" />
+        app:layout_constraintTop_toBottomOf="@id/btn_select_apps" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

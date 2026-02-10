@@ -16,6 +16,8 @@
         android:theme="@style/Theme.HelloWorld"
         tools:targetApi="31">
 
+        <!-- 新增：显式声明 Shizuku Provider -->
+        <!-- authorities 必须是 "你的包名.shizuku" -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
@@ -38,20 +40,6 @@
             android:name=".AppSelectionActivity"
             android:label="选择应用"
             android:parentActivityName=".MainActivity" />
-
-        <service
-            android:name=".KeepAliveAccessibilityService"
-            android:exported="true"
-            android:label="应用保活服务"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
     </application>
 
 </manifest>
