@@ -50,4 +50,5 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+    implementation("androidx.biometric:biometric:1.1.0")
 }
