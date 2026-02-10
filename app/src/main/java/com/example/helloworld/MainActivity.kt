@@ -1,15 +1,14 @@
 package com.example.helloworld
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.provider.Settings
+import android.text.TextUtils
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -17,7 +16,6 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import com.example.helloworld.databinding.ActivityMainBinding
-import com.example.helloworld.service.KeepAliveService // 确保引用了你创建的服务
 import rikka.shizuku.Shizuku
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -33,7 +31,6 @@ class MainActivity : AppCompatActivity() {
     private var selectedPackages = ArrayList<String>()
     private var isUpdatingSwitch = false
 
-    // 选择应用的 Activity 回调
     private val selectAppsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -53,7 +50,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Shizuku 连接监听
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         runOnUiThread { checkShizukuReady() }
     }
@@ -65,12 +61,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Shizuku 权限结果监听
     private val requestPermissionResultListener =
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
             if (requestCode == 100 && grantResult == PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "授权成功", Toast.LENGTH_SHORT).show()
-                // 授权后执行暂停操作（授权时肯定是开启状态）
                 executeSuspendAction(true)
             } else if (requestCode == 100) {
                 revertSwitchState(false)
@@ -99,11 +93,8 @@ class MainActivity : AppCompatActivity() {
         Shizuku.addRequestPermissionResultListener(requestPermissionResultListener)
 
         checkShizukuReady()
-        
-        // 4. 【保活策略】检查并忽略电池优化
-        checkAndRequestBatteryOptimization()
 
-        // 5. 开关逻辑
+        // 4. 开关逻辑
         binding.switchDynamic.setOnCheckedChangeListener { _, isChecked ->
             if (isUpdatingSwitch) return@setOnCheckedChangeListener
 
@@ -114,12 +105,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (isChecked) {
-                // --- 开启开关 (暂停应用) ---
                 if (checkPermission()) {
                     executeSuspendAction(true)
                 }
             } else {
-                // --- 关闭开关 (恢复应用) ---
                 authenticateAndUnsuspend()
             }
         }
@@ -129,7 +118,23 @@ class MainActivity : AppCompatActivity() {
             selectAppsLauncher.launch(intent)
         }
         
+        // --- 新增：无障碍保活逻辑 ---
+        binding.btnAccessibility.setOnClickListener {
+            try {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                Toast.makeText(this, "请在列表中找到本应用并开启", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "无法打开设置页面", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
         updateSelectButtonState()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 每次回到页面时检查无障碍状态
+        updateAccessibilityStatus()
     }
 
     override fun onDestroy() {
@@ -137,6 +142,39 @@ class MainActivity : AppCompatActivity() {
         Shizuku.removeBinderReceivedListener(binderReceivedListener)
         Shizuku.removeBinderDeadListener(binderDeadListener)
         Shizuku.removeRequestPermissionResultListener(requestPermissionResultListener)
+    }
+
+    // --- 新增：检查无障碍服务状态 ---
+    private fun updateAccessibilityStatus() {
+        if (isAccessibilityServiceEnabled()) {
+            binding.btnAccessibility.text = "保活服务已开启"
+            binding.btnAccessibility.isEnabled = false // 开启后禁用按钮，或者改为“已开启”状态
+            // 可以选择在这里设置按钮颜色等样式
+        } else {
+            binding.btnAccessibility.text = "开启保活 (无障碍)"
+            binding.btnAccessibility.isEnabled = true
+        }
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val expectedComponentName = ComponentName(this, KeepAliveAccessibilityService::class.java)
+        
+        val enabledServicesSetting = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        val colonSplitter = TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServicesSetting)
+
+        while (colonSplitter.hasNext()) {
+            val componentNameString = colonSplitter.next()
+            val enabledComponent = ComponentName.unflattenFromString(componentNameString)
+            if (enabledComponent != null && enabledComponent == expectedComponentName) {
+                return true
+            }
+        }
+        return false
     }
 
     // --- 数据持久化 ---
@@ -157,55 +195,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- 【核心】保活与电池优化逻辑 ---
-
-    /**
-     * 检查是否在电池优化白名单中，如果没有则请求
-     * 这是实现“无感”运行的关键，防止系统杀后台
-     */
-    private fun checkAndRequestBatteryOptimization() {
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        val packageName = packageName
-        
-        // Android 6.0 (API 23) 以上才需要此操作
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
-                try {
-                    val intent = Intent().apply {
-                        action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                        data = Uri.parse("package:$packageName")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    Toast.makeText(this, "无法打开电池优化设置，请手动开启", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-
-    /**
-     * 启动前台保活服务
-     * 在应用被暂停（开关开启）期间运行，防止本应用被杀导致 Shizuku 链接断开
-     */
-    private fun startKeepAliveService() {
-        val intent = Intent(this, KeepAliveService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-    }
-
-    /**
-     * 停止前台保活服务
-     * 当应用恢复（开关关闭）后，不再需要保活，释放资源
-     */
-    private fun stopKeepAliveService() {
-        val intent = Intent(this, KeepAliveService::class.java)
-        stopService(intent)
-    }
-
     // --- 生物识别逻辑 ---
 
     private fun setupBiometric() {
@@ -221,7 +210,11 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    Toast.makeText(applicationContext, "验证错误: $errString", Toast.LENGTH_SHORT).show()
+                    // 忽略用户主动取消的情况
+                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && 
+                        errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                         Toast.makeText(applicationContext, "验证错误: $errString", Toast.LENGTH_SHORT).show()
+                    }
                     revertSwitchState(true)
                 }
 
@@ -245,10 +238,11 @@ class MainActivity : AppCompatActivity() {
             if (checkPermission()) executeSuspendAction(false)
             return
         }
+        
         biometricPrompt.authenticate(promptInfo)
     }
 
-    // --- Shizuku 与 命令执行逻辑 ---
+    // --- 核心逻辑 ---
 
     private fun checkShizukuReady() {
         if (Shizuku.pingBinder()) {
@@ -288,14 +282,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 如果状态是暂停（开启），则启动保活服务以防万一
-        if (allSuspended) {
-            startKeepAliveService()
-        } else {
-            // 如果没暂停，理论上不需要保活
-            stopKeepAliveService()
-        }
-
         updateSwitchSilent(allSuspended)
         updateSelectButtonState()
     }
@@ -329,15 +315,6 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (exitCode == 0) {
                         Toast.makeText(this, if (suspend) "已暂停" else "已恢复", Toast.LENGTH_SHORT).show()
-                        
-                        // 【保活控制关键点】
-                        // 暂停应用成功 -> 启动保活服务（防止自己被杀导致无法自动恢复或Shizuku断连）
-                        // 恢复应用成功 -> 停止保活服务（节省电量）
-                        if (suspend) {
-                            startKeepAliveService()
-                        } else {
-                            stopKeepAliveService()
-                        }
                     } else {
                         val errorReader = BufferedReader(InputStreamReader(process.errorStream))
                         binding.tvSelectedApps.text = "执行失败: ${errorReader.readText()}"
